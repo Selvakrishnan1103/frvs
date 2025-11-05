@@ -115,7 +115,6 @@ export default function AdmissionForm() {
             />
           </div>
 
-          {/* Parent Name */}
           <div>
             <label className="block font-semibold mb-1">Parent Name</label>
             <input
