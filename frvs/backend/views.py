@@ -36,6 +36,8 @@ def get_categories(request):
 
 @csrf_exempt
 def face_recognition_view(request):
+    if request.method == "GET":
+        return JsonResponse({"message": "Send a POST request with parent_face and live_face images"}, status=200)
     if request.method == "POST":
         # Get uploaded images
         parent_face_file = request.FILES.get("parent_face")
