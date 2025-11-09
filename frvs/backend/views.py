@@ -3,6 +3,7 @@ from django.views.decorators.csrf import csrf_exempt
 from .models import Category
 import face_recognition
 import numpy as np
+import json
 
 @csrf_exempt
 def get_categories(request):
@@ -11,15 +12,17 @@ def get_categories(request):
         return JsonResponse(data, safe=False)
 
     elif request.method == "POST":
+        try:
+            data = json.loads(request.body.decode("utf-8"))
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON"}, status=400)
         # Collect text fields
-        student_id = request.POST.get("student_id")
-        student_name = request.POST.get("student_name")
-        parent_id = request.POST.get("parent_id")
-        parent_name = request.POST.get("parent_name")
+        student_id = data.get("studentId")
+        student_name = data.get("studentName")
+        parent_id = data.get("parentId")
+        parent_name = data.get("parentName")
 
-        # Collect image files
-        student_face = request.FILES.get("student_face")
-        parent_face = request.FILES.get("parent_face")
+        parent_face = data.get("parentFace")
 
         # Create record in database
         category = Category.objects.create(
@@ -27,7 +30,6 @@ def get_categories(request):
             student_name=student_name,
             parent_id=parent_id,
             parent_name=parent_name,
-            student_face=student_face,
             parent_face=parent_face
         )
 

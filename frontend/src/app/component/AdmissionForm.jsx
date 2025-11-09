@@ -53,31 +53,79 @@ export default function AdmissionForm() {
     setCameraOn(false);
   };
 
-  // Handle form submission
   const handleSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    if (!capturedImage) {
-      alert("Please capture parent image first!");
+  if (!capturedImage) {
+    alert("Please capture parent image first!");
+    return;
+  }
+
+  // 1️⃣ Upload image to Cloudinary
+  const cloudName = "denobiomr"; // e.g. "dqwerty123"
+  const uploadPreset = "parent_face"; // create this in Cloudinary console
+
+  const formDataCloud = new FormData();
+  formDataCloud.append("file", capturedImage);
+  formDataCloud.append("upload_preset", uploadPreset);
+
+  let imageUrl = null;
+
+  try {
+    const uploadResponse = await fetch(
+      `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+      {
+        method: "POST",
+        body: formDataCloud,
+      }
+    );
+
+    const uploadData = await uploadResponse.json();
+
+    if (!uploadResponse.ok) {
+      console.error("Cloudinary error:", uploadData);
+      alert("Error uploading image to Cloudinary");
       return;
     }
 
-    const dataToSend = {
-      ...formData,
-      parentImage: capturedImage, // base64 image
-    };
+    imageUrl = uploadData.secure_url;
+    console.log("✅ Image uploaded:", imageUrl);
+  } catch (err) {
+    console.error("Cloudinary upload failed:", err);
+    alert("Failed to upload image");
+    return;
+  }
 
-    console.log("Submitting data:", dataToSend);
-
-    // Example for sending to Django backend:
-    // await fetch("http://127.0.0.1:8000/api/save_parent/", {
-    //   method: "POST",
-    //   headers: { "Content-Type": "application/json" },
-    //   body: JSON.stringify(dataToSend),
-    // });
-
-    alert("Form submitted successfully! (Check console for data)");
+  // 2️⃣ Send all form data (including image URL) to Django backend
+  const dataToSend = {
+    ...formData,
+    parentFace: imageUrl, // Django model stores this URL
   };
+
+  try {
+      const response = await fetch("http://127.0.0.1:8000/categories/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dataToSend),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        console.error(errData);
+        alert("Error saving data in backend!");
+        return;
+      }
+
+      alert("Form submitted successfully!");
+      console.log("✅ Data sent to backend:", dataToSend);
+      setCapturedImage(null);
+      setFormData({ studentName: "", studentId: "", parentName: "", parentId: "" });
+    } catch (err) {
+      console.error("Backend error:", err);
+      alert("Failed to save data in backend.");
+    }
+  };
+
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 p-6">

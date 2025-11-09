@@ -7,8 +7,7 @@ class Category(models.Model):
     parent_name = models.CharField(max_length=100)
 
     # New: store face images
-    student_face = models.ImageField(upload_to='faces/students/', blank=True, null=True)
-    parent_face = models.ImageField(upload_to='faces/parents/', blank=True, null=True)
+    parent_face = models.URLField(max_length=500)
 
     class Meta:
         unique_together = ('student_id', 'parent_id')
