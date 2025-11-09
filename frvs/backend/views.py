@@ -5,7 +5,7 @@ import face_recognition
 import numpy as np
 
 @csrf_exempt
-def category_view(request):
+def get_categories(request):
     if request.method == "GET":
         data = list(Category.objects.values())
         return JsonResponse(data, safe=False)
