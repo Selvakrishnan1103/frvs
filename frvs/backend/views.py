@@ -5,7 +5,7 @@ import face_recognition
 import numpy as np
 
 @csrf_exempt
-def category_view(request):
+def get_categories(request):
     if request.method == "GET":
         data = list(Category.objects.values())
         return JsonResponse(data, safe=False)
@@ -36,6 +36,8 @@ def category_view(request):
 
 @csrf_exempt
 def face_recognition_view(request):
+    if request.method == "GET":
+        return JsonResponse({"message": "Send a POST request with parent_face and live_face images"}, status=200)
     if request.method == "POST":
         # Get uploaded images
         parent_face_file = request.FILES.get("parent_face")
