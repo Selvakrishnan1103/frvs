@@ -1,12 +1,73 @@
 "use client";
-
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 export default function Marksheet() {
   const [verified, setVerified] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [confidence, setConfidence] = useState(null);
+  const videoRef = useRef(null);
 
-  const handleVerify = () => {
-    setVerified(true);
+  // Access webcam
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (error) {
+      alert("Unable to access camera. Please allow permission.");
+      console.error(error);
+    }
+  };
+
+  // Capture one frame and send for verification
+  const handleVerify = async () => {
+    setLoading(true);
+    setVerified(false);
+    setConfidence(null);
+
+    await startCamera();
+
+    // Wait for video to initialize properly
+    setTimeout(async () => {
+      const video = videoRef.current;
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const context = canvas.getContext("2d");
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = canvas.toDataURL("image/jpeg");
+
+      // Stop camera
+      const stream = video.srcObject;
+      if (stream) stream.getTracks().forEach((track) => track.stop());
+
+      // Send to Django
+      try {
+        const res = await fetch("http://127.0.0.1:8000/verify-face/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            parentId: "21112",
+            faceImage: imageData,
+          }),
+        });
+
+        const data = await res.json();
+        setLoading(false);
+
+        if (res.ok && data.verified) {
+          setVerified(true);
+          setConfidence(data.confidence);
+        } else {
+          alert(data.error || "❌ Face not matched!");
+        }
+      } catch (err) {
+        setLoading(false);
+        console.error(err);
+        alert("Verification failed. Please try again.");
+      }
+    }, 2000);
   };
 
   return (
@@ -28,38 +89,36 @@ export default function Marksheet() {
               <td className="border border-gray-300 p-2">92</td>
               <td className="border border-gray-300 p-2">A+</td>
             </tr>
-            <tr>
-              <td className="border border-gray-300 p-2">Science</td>
-              <td className="border border-gray-300 p-2">88</td>
-              <td className="border border-gray-300 p-2">A</td>
-            </tr>
-            <tr>
-              <td className="border border-gray-300 p-2">English</td>
-              <td className="border border-gray-300 p-2">85</td>
-              <td className="border border-gray-300 p-2">A</td>
-            </tr>
-            <tr>
-              <td className="border border-gray-300 p-2">Computer Science</td>
-              <td className="border border-gray-300 p-2">95</td>
-              <td className="border border-gray-300 p-2">A+</td>
-            </tr>
           </tbody>
         </table>
 
-        {/* Verify Button */}
+        {/* Webcam preview */}
+        <div className="flex justify-center mt-6">
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            className="rounded-lg shadow-md w-64 h-48 bg-black"
+          ></video>
+        </div>
+
         <div className="flex justify-center mt-4">
           <button
             onClick={handleVerify}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg shadow-md"
+            disabled={loading}
+            className={`${
+              verified
+                ? "bg-green-600 hover:bg-green-700"
+                : "bg-blue-600 hover:bg-blue-700"
+            } text-white font-semibold py-2 px-6 rounded-lg shadow-md`}
           >
-            {verified ? "Verified ✅" : "Verify"}
+            {loading ? "Verifying..." : verified ? "Verified ✅" : "Verify"}
           </button>
         </div>
 
-        {/* Verification Message */}
         {verified && (
           <p className="text-center text-green-600 mt-3 font-medium">
-            Marksheet verified successfully!
+            Verified successfully! Confidence: {confidence}%
           </p>
         )}
       </div>
