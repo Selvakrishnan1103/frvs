@@ -45,8 +45,15 @@ def get_categories(request):
 @csrf_exempt
 def verify_face(request):
     try:
+        if request.method != "POST":
+            return JsonResponse({"error": "Only POST allowed"}, status=405)
+
         # Load JSON
-        data = json.loads(request.body.decode('utf-8'))
+        try:
+            data = json.loads(request.body.decode("utf-8"))
+        except Exception:
+            return JsonResponse({"error": "Invalid JSON body"}, status=400)
+
         parent_id = data.get("parentId")
         captured_data = data.get("faceImage")
 
@@ -56,14 +63,32 @@ def verify_face(request):
         # Get stored parent image from DB (Base64)
         parent_obj = Category.objects.get(parent_id=parent_id)
         parent_base64 = parent_obj.parent_face
+        if not parent_base64:
+            return JsonResponse({"error": "Parent image not stored"}, status=400)
 
-        # Decode base64 images
-        parent_bytes = base64.b64decode(parent_base64.split(",")[1])
-        captured_bytes = base64.b64decode(captured_data.split(",")[1])
+        # Helper to decode base64 (handles data url or plain base64)
+        def decode_b64(b64_string):
+            try:
+                if "," in b64_string:
+                    header, b64 = b64_string.split(",", 1)
+                else:
+                    b64 = b64_string
+                return base64.b64decode(b64)
+            except Exception as ex:
+                raise ValueError(f"Base64 decode error: {ex}")
+
+        try:
+            parent_bytes = decode_b64(parent_base64)
+            captured_bytes = decode_b64(captured_data)
+        except ValueError as e:
+            return JsonResponse({"error": str(e)}, status=400)
 
         # Convert to Pillow Image (force RGB)
-        parent_img = Image.open(BytesIO(parent_bytes)).convert("RGB")
-        captured_img = Image.open(BytesIO(captured_bytes)).convert("RGB")
+        try:
+            parent_img = Image.open(BytesIO(parent_bytes)).convert("RGB")
+            captured_img = Image.open(BytesIO(captured_bytes)).convert("RGB")
+        except Exception as e:
+            return JsonResponse({"error": f"Cannot open image: {e}"}, status=400)
 
         # Convert to numpy
         parent_array = np.array(parent_img)
@@ -88,6 +113,12 @@ def verify_face(request):
         parent_encodings = face_recognition.face_encodings(parent_array, known_face_locations=parent_locations)
         captured_encodings = face_recognition.face_encodings(captured_array, known_face_locations=captured_locations)
 
+        # Defensive checks: make sure encodings were produced
+        if not parent_encodings:
+            return JsonResponse({"error": "Failed to compute encoding for parent image"}, status=400)
+        if not captured_encodings:
+            return JsonResponse({"error": "Failed to compute encoding for captured image"}, status=400)
+
         parent_encoding = parent_encodings[0]
         captured_encoding = captured_encodings[0]
 
@@ -97,7 +128,7 @@ def verify_face(request):
         confidence = round((1 - distance) * 100, 2)
 
         return JsonResponse({
-            "match": result[0],
+            "match": bool(result[0]),
             "confidence": confidence,
             "message": "✅ Face verified successfully" if result[0] else "❌ Face not matched"
         })
@@ -105,5 +136,7 @@ def verify_face(request):
     except Category.DoesNotExist:
         return JsonResponse({"error": "Parent not found"}, status=404)
     except Exception as e:
-        print("Face verification error:", e)
-        return JsonResponse({"error": str(e)}, status=400)
+        # Log full exception server-side (stack trace) for debugging
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({"error": "Internal server error"}, status=500)
