@@ -48,7 +48,7 @@ export default function Marksheet() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            parentId: "21112",
+            parentId: "kt567",
             faceImage: imageData,
           }),
         });
